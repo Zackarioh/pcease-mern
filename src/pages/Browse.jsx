@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import '../styles/browse.css'
+import { useEffect, useMemo, useState } from 'react'
 import { getComponentsStructured } from '../shared/api.js'
+import '../styles/browse.css'
 
 function transformDB(db){
   const all = []
@@ -8,6 +8,8 @@ function transformDB(db){
     for (const item of items){
       const avgPrice = item.vendors?.length ? Math.round(item.vendors.reduce((s,v)=>s+v.price,0)/item.vendors.length) : 0
       all.push({
+        // create a unique id per category so keys are stable even if numeric ids repeat across categories
+        uid: `${category}-${item.id}`,
         id: item.id,
         name: item.name,
         category,
@@ -84,8 +86,8 @@ export default function Browse(){
 
   const openDetail = (item) => setDetail({ open:true, item })
   const closeDetail = () => setDetail({ open:false, item:null })
-  const toggleFavorite = (id) => setFavorites(list => list.includes(id) ? list.filter(x=>x!==id) : [...list, id])
-  const toggleCompare = (id) => setCompareList(list => list.includes(id) ? list.filter(x=>x!==id) : (list.length>=3 ? list : [...list, id]))
+  const toggleFavorite = (uid) => setFavorites(list => list.includes(uid) ? list.filter(x=>x!==uid) : [...list, uid])
+  const toggleCompare = (uid) => setCompareList(list => list.includes(uid) ? list.filter(x=>x!==uid) : (list.length>=3 ? list : [...list, uid]))
 
   if (loading) return (
     <main className="container"><header className="page-header"><h1>Browse Components</h1><p>Loading components…</p></header></main>
@@ -125,15 +127,17 @@ export default function Browse(){
       <section className="grid">
         {results.length===0 ? <p className="muted">No components match your filters.</p> : results.map(item => {
           const cheapest = getCheapestVendor(item)
-          const fav = favorites.includes(item.id)
-          const inCmp = compareList.includes(item.id)
+          // support both legacy numeric ids and new per-category uid values stored in localStorage
+          const uid = item.uid || `${item.category}-${item.id}`
+          const fav = favorites.includes(uid) || favorites.includes(item.id)
+          const inCmp = compareList.includes(uid) || compareList.includes(item.id)
           return (
-            <article key={item.id} className="card">
+            <article key={uid} className="card">
               <div className="card-top">
                 <span className="badge">{getCategoryName(item.category)}</span>
                 <div className="icons">
-                  <button className={"icon "+(fav?'active':'')} title="Favorite" onClick={()=>toggleFavorite(item.id)}>{fav ? '⭐' : '☆'}</button>
-                  <button className={"icon "+(inCmp?'active':'')} title="Compare" onClick={()=>toggleCompare(item.id)} disabled={!inCmp && compareList.length>=3}>{inCmp ? '✓' : '⚖️'}</button>
+                  <button className={"icon "+(fav?'active':'')} title="Favorite" onClick={()=>toggleFavorite(uid)}>{fav ? '⭐' : '☆'}</button>
+                  <button className={"icon "+(inCmp?'active':'')} title="Compare" onClick={()=>toggleCompare(uid)} disabled={!inCmp && compareList.length>=3}>{inCmp ? '✓' : '⚖️'}</button>
                 </div>
               </div>
               <h3 className="title" title={item.name}>{item.name}</h3>
