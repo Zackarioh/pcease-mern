@@ -16,6 +16,8 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+    // Hint native UI (scrollbars, form controls) for better contrast
+    document.documentElement.style.colorScheme = theme
     try { localStorage.setItem(STORAGE_KEY, theme) } catch {}
   }, [theme])
 

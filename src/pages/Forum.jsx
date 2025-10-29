@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import '../styles/forum.css'
 import { isLoggedIn, getSession, getToken } from '../lib/auth.js'
-import { getThreads, createThread, deleteThread } from '../shared/api.js'
+import { getThreads, createThread, deleteThread, getThread, addReply } from '../shared/api.js'
 
 export default function Forum() {
   const [threads, setThreads] = useState([])
@@ -9,6 +9,9 @@ export default function Forum() {
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('')
   const [form, setForm] = useState({ title: '', category: 'General', content: '' })
+  const [expanded, setExpanded] = useState({}) // threadId => boolean
+  const [replies, setReplies] = useState({}) // threadId => { loading, list }
+  const [replyText, setReplyText] = useState({}) // threadId => string
 
   const load = async (category) => {
     setLoading(true); setError('')
@@ -39,6 +42,26 @@ export default function Forum() {
   const del = async (id) => {
     try{ await deleteThread({ id, token: getToken() }); await load(filter) }
     catch(err){ alert(err.message || 'Failed to delete') }
+  }
+
+  const toggleReplies = async (id) => {
+    setExpanded(s => ({ ...s, [id]: !s[id] }))
+    if (!replies[id]){
+      setReplies(m => ({ ...m, [id]: { loading: true, list: [] } }))
+      try{ const th = await getThread(id); setReplies(m => ({ ...m, [id]: { loading: false, list: th.replies || [] } })) }
+      catch{ setReplies(m => ({ ...m, [id]: { loading: false, list: [] } })) }
+    }
+  }
+
+  const submitReply = async (id) => {
+    const text = (replyText[id] || '').trim()
+    if (!text) return
+    if (!isLoggedIn()) { window.location.href = '/login?redirect=/forum' ; return }
+    try{
+      const r = await addReply({ id, content: text, token: getToken() })
+      setReplyText(m => ({ ...m, [id]: '' }))
+      setReplies(m => ({ ...m, [id]: { loading: false, list: [ ...(m[id]?.list||[]), { _id: r.reply?._id || Math.random().toString(36).slice(2), user: getSession()?.username || 'You', content: text, createdAt: new Date().toISOString() } ] } }))
+    }catch(err){ alert(err.message || 'Failed to reply') }
   }
 
   return (
@@ -119,7 +142,28 @@ export default function Forum() {
                 <p className="thread-content">{t.content}</p>
                 <div className="thread-actions">
                   {session?.username===t.user && <button className="thread-delete" onClick={()=>del(t._id)}>Delete</button>}
+                  <button className="secondary-button" onClick={()=>toggleReplies(t._id)}>{expanded[t._id] ? 'Hide Replies' : 'Show Replies'}</button>
                 </div>
+                {expanded[t._id] && (
+                  <div className="thread-replies">
+                    {replies[t._id]?.loading ? <p className="forum-empty">Loading replies...</p> : (
+                      replies[t._id]?.list?.length ? (
+                        <ul className="reply-list">
+                          {replies[t._id].list.map(r => (
+                            <li key={r._id} className="reply-item">
+                              <div className="reply-meta"><strong>{r.user || 'User'}</strong><span>{new Date(r.createdAt).toLocaleString()}</span></div>
+                              <p className="reply-content">{r.content}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="forum-empty">No replies yet.</p>
+                    )}
+                    <div className="reply-form">
+                      <input type="text" placeholder="Write a reply..." value={replyText[t._id] || ''} onChange={e=>setReplyText(m => ({ ...m, [t._id]: e.target.value }))} />
+                      <button className="cta-button" onClick={()=>submitReply(t._id)}>Reply</button>
+                    </div>
+                  </div>
+                )}
               </article>
             ))}
           </div>

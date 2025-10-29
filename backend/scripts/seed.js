@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
+import fs from 'fs'
 
 // __dirname shim for ESM
 const __filename = fileURLToPath(import.meta.url)
@@ -67,10 +68,11 @@ async function loadComponentsFromFrontEnd(){
     }
     return docs
   } catch (e) {
-    // Fallback to JSON seed if available
+    // Fallback to JSON seed if available (read via fs for compatibility)
     try {
-      const raw = await import(pathToFileURL(jsonPath).href, { assert: { type: 'json' } })
-      const seed = raw.default || {}
+      if (!fs.existsSync(jsonPath)) throw new Error('no json')
+      const raw = fs.readFileSync(jsonPath, 'utf-8')
+      const seed = JSON.parse(raw)
       const docs = []
       for (const [category, items] of Object.entries(seed)){
         for (const item of items){

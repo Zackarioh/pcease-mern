@@ -87,3 +87,56 @@ export async function deleteThread({ id, token }) {
   }
   return res.json();
 }
+
+// Thread details and replies
+export async function getThread(id){
+  const res = await fetch(`${API_URL}/threads/${id}`)
+  if (!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || 'Failed to load thread') }
+  return res.json()
+}
+
+export async function addReply({ id, content, token }){
+  const res = await fetch(`${API_URL}/threads/${id}/replies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ content })
+  })
+  if (!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || 'Failed to post reply') }
+  return res.json()
+}
+
+// ===== Saved Builds API =====
+export async function getSavedBuilds(token){
+  const res = await fetch(`${API_URL}/saved-builds`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error('Failed to load saved builds')
+  return res.json()
+}
+
+export async function createSavedBuild({ name, items, token }){
+  const res = await fetch(`${API_URL}/saved-builds`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, items })
+  })
+  if (!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || 'Failed to save build') }
+  return res.json()
+}
+
+export async function updateSavedBuild({ id, name, items, token }){
+  const res = await fetch(`${API_URL}/saved-builds/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, items })
+  })
+  if (!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || 'Failed to update build') }
+  return res.json()
+}
+
+export async function deleteSavedBuild({ id, token }){
+  const res = await fetch(`${API_URL}/saved-builds/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || 'Failed to delete build') }
+  return res.json()
+}

@@ -5,55 +5,7 @@
    =============================================== */
 
 /* ========== CSS Custom Properties ========== */
-:root {
-    /* Colors - Light Theme */
-    --bg: #f4f7f9;
-    --text: #2c3e50;
-    --muted: #586b7b;
-    --surface: #ffffff;
-    --surface-2: #e9eef2;
-    --border: #e6ecf1;
-    --accent: #3498db;
-    --accent-hover: #2980b9;
-    --success: #27ae60;
-    --success-bg: #eaf8f0;
-    --danger: #e74c3c;
-    --danger-bg: #fbecec;
-    --footer-bg: #2c3e50;
-    --footer-text: #bdc3c7;
-    
-    /* Shadows */
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12);
-    --shadow-lg: 0 6px 14px rgba(0, 0, 0, 0.15);
-    
-    /* Spacing */
-    --space-xs: 0.25rem;
-    --space-sm: 0.5rem;
-    --space-md: 1rem;
-    --space-lg: 1.5rem;
-    --space-xl: 2rem;
-    
-    /* Typography */
-    --font-system: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    
-    /* Transitions */
-    --transition-fast: 0.15s ease;
-    --transition-base: 0.3s ease;
-}
-
-[data-theme="dark"] {
-    --bg: #0f141a;
-    --text: #e6eef5;
-    --muted: #a9b6c4;
-    --surface: #121a22;
-    --surface-2: #1b2530;
-    --border: #263442;
-    --accent: #5dade2;
-    --accent-hover: #3f8bc9;
-    --footer-bg: #0b1117;
-    --footer-text: #9db4c6;
-}
+/* Inherit tokens from global theme */
 
 /* ========== Base Styles ========== */
 *,
@@ -62,110 +14,16 @@
     box-sizing: border-box;
 }
 
-body {
-    margin: 0;
-    font-family: var(--font-system);
-    background-color: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
+body { line-height: 1.6; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 /* ========== Layout ========== */
-.container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 var(--space-lg);
-}
+.container { max-width: 1100px; margin: 0 auto; padding: 0 var(--space-lg); }
 
 /* ========== Navigation ========== */
-.navbar {
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-    padding: var(--space-md) 0;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-.navbar .container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.brand-logo {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text);
-    text-decoration: none;
-    transition: opacity var(--transition-fast);
-}
-
-.brand-logo:hover {
-    opacity: 0.8;
-}
-
-.nav-links {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    gap: 20px;
-    align-items: center;
-}
-
-.nav-links a {
-    text-decoration: none;
-    color: var(--accent);
-    font-weight: 500;
-    transition: color var(--transition-fast);
-}
-
-.nav-links a:hover {
-    color: var(--accent-hover);
-}
-
-.theme-toggle-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all var(--transition-fast);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 500;
-}
-
-.theme-toggle-btn:hover {
-    background: var(--surface-2);
-    border-color: var(--accent);
-    transform: translateY(-1px);
-}
-
-.theme-icon {
-    font-size: 1.1rem;
-    line-height: 1;
-}
-
-.theme-text {
-    line-height: 1;
-}
+/* use global navbar */
 
 /* ========== Main Content ========== */
-main.container {
-    flex: 1;
-    padding-top: var(--space-xl);
-    padding-bottom: var(--space-xl);
-}
+main.container { padding-top: var(--space-xl); padding-bottom: var(--space-xl); }
 
 /* ========== Page Header ========== */
 .page-header {
@@ -515,7 +373,7 @@ textarea:focus {
 
 /* Build Summary */
 .build-summary {
-    background: linear-gradient(135deg, var(--accent), #27ae60);
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: white;
     padding: var(--space-xl);
     border-radius: 8px;
@@ -722,13 +580,7 @@ textarea:focus {
 }
 
 /* ========== Footer ========== */
-.footer {
-    background: var(--footer-bg);
-    padding: var(--space-xl);
-    text-align: center;
-    color: var(--footer-text);
-    margin-top: auto;
-}
+/* footer handled by global */
 
 /* ========== Responsive Design ========== */
 @media (max-width: 768px) {

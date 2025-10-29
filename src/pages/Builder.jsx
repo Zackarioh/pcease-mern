@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import '../styles/builder.css'
-import { getComponentsStructured } from '../shared/api.js'
+import { getComponentsStructured, getSavedBuilds, createSavedBuild, deleteSavedBuild, updateSavedBuild } from '../shared/api.js'
+import { isLoggedIn, getToken } from '../lib/auth.js'
 
 function getCheapestVendor(component){
   if (!component?.vendors?.length) return null
@@ -31,6 +32,11 @@ export default function Builder(){
   const categories = Object.keys(db)
   const [currentBuild, setCurrentBuild] = useState(()=>({ cpu:null, motherboard:null, ram:null, gpu:null, storage:null, psu:null, pcCase:null, monitor:null }))
   const [modal, setModal] = useState({ open:false, view:'list', category:null, itemId:null })
+  const [modalQuery, setModalQuery] = useState('')
+  const [savedBuilds, setSavedBuilds] = useState(()=>{
+    try{ return JSON.parse(localStorage.getItem('savedBuilds')||'[]') }catch{ return [] }
+  })
+  const loggedIn = isLoggedIn()
 
   // load from URL
   useEffect(()=>{
@@ -40,6 +46,22 @@ export default function Builder(){
       try { const decoded = JSON.parse(atob(buildData)); setCurrentBuild(decoded) } catch {}
     }
   }, [])
+
+  // Load account saved builds if logged in
+  useEffect(()=>{
+    let active = true
+    if (!loggedIn) return
+    ;(async()=>{
+      try{
+        const token = getToken()
+        const list = await getSavedBuilds(token)
+        if (!active) return
+        // Map _id to id for UI consistency
+        setSavedBuilds(list.map(b=>({ id: b._id, name: b.name, createdAt: b.createdAt, items: b.items })))
+      }catch(e){ /* ignore for UI */ }
+    })()
+    return ()=>{ active = false }
+  }, [loggedIn])
 
   const warnings = useMemo(()=>{
     const w = []
@@ -60,7 +82,7 @@ export default function Builder(){
   const totalCount = Object.keys(currentBuild).length
   const totalPrice = Object.values(currentBuild).filter(Boolean).reduce((sum, item)=> sum + lowestPrice(item), 0)
 
-  const choose = (category) => setModal({ open:true, view:'list', category })
+  const choose = (category) => { setModal({ open:true, view:'list', category }); setModalQuery('') }
   const closeModal = () => setModal(m => ({...m, open:false}))
   const showDetail = (category, id) => setModal({ open:true, view:'detail', category, itemId:id })
   const addToBuild = (category, id) => {
@@ -72,8 +94,61 @@ export default function Builder(){
   const removeItem = (category) => setCurrentBuild(b=> ({...b, [category]: null}))
 
   // toolbar actions
-  const saveBuild = () => { try { localStorage.setItem('savedBuild', JSON.stringify(currentBuild)); alert('✅ Build saved successfully!') } catch { alert('❌ Failed to save build.') } }
-  const loadBuild = () => { try{ const s = localStorage.getItem('savedBuild'); if(s){ if(confirm('Load saved build? This will replace your current build.')) setCurrentBuild(JSON.parse(s)) } else alert('❌ No saved build found.') } catch { alert('❌ Failed to load build.') } }
+  const saveBuild = async () => {
+    const name = prompt('Name this build (e.g., "Budget 1080p Gaming")')?.trim()
+    if (!name) return
+    if (loggedIn){
+      try{
+        const token = getToken()
+        // Deep-clone to ensure plain JSON
+        const safeItems = JSON.parse(JSON.stringify(currentBuild))
+        const doc = await createSavedBuild({ name, items: safeItems, token })
+        setSavedBuilds(list => [{ id: doc._id, name: doc.name, createdAt: doc.createdAt, items: doc.items }, ...list])
+        alert('✅ Build saved to your account!')
+      }catch(e){ alert('❌ Failed to save build: ' + e.message) }
+    } else {
+      const id = Date.now()
+      const entry = { id, name, createdAt: new Date().toISOString(), items: currentBuild }
+      setSavedBuilds(list => {
+        const next = [entry, ...list].slice(0,50)
+        try{ localStorage.setItem('savedBuilds', JSON.stringify(next)) }catch{}
+        return next
+      })
+      try { localStorage.setItem('savedBuild', JSON.stringify(currentBuild)) } catch {}
+      alert('✅ Build saved locally! Login to save to your account.')
+    }
+  }
+  const loadBuild = () => {
+    try{ const s = localStorage.getItem('savedBuild'); if(s){ if(confirm('Load last saved build? This will replace your current build.')) setCurrentBuild(JSON.parse(s)) } else alert('❌ No saved build found.') } catch { alert('❌ Failed to load build.') }
+  }
+  const loadSavedById = (id) => {
+    const entry = savedBuilds.find(b=>b.id===id)
+    if (!entry) return
+    if (confirm(`Load build "${entry.name}"? This will replace your current build.`)) setCurrentBuild(entry.items)
+  }
+  const deleteSaved = async (id) => {
+    if (!confirm('Delete this saved build?')) return
+    if (loggedIn){
+      try{ await deleteSavedBuild({ id, token: getToken() }) }catch(e){ alert('❌ ' + e.message); return }
+    } else {
+      try{ const data = savedBuilds.filter(b=>b.id!==id); localStorage.setItem('savedBuilds', JSON.stringify(data)) }catch{}
+    }
+    setSavedBuilds(list => list.filter(b=>b.id!==id))
+  }
+  const renameSaved = async (id) => {
+    const name = prompt('New name for this build?')?.trim()
+    if (!name) return
+    if (loggedIn){
+      try{ const doc = await updateSavedBuild({ id, name, token: getToken() }); setSavedBuilds(list => list.map(b=> b.id===id ? { ...b, name: doc.name } : b)) }
+      catch(e){ alert('❌ ' + e.message) }
+    } else {
+      setSavedBuilds(list => {
+        const next = list.map(b=> b.id===id ? {...b, name} : b)
+        try{ localStorage.setItem('savedBuilds', JSON.stringify(next)) }catch{}
+        return next
+      })
+    }
+  }
   const exportBuild = () => {
     const parts = Object.entries(currentBuild).filter(([_,item])=>item).map(([cat,item])=>`${displayName(cat)}: ${item.name} - ₹${lowestPrice(item).toLocaleString('en-IN')}`)
     if (parts.length===0) { alert('❌ No components selected to export.'); return }
@@ -153,6 +228,31 @@ export default function Builder(){
           </div>
           <div className="total-price"><h3 id="total-price">Total: ₹{totalPrice.toLocaleString('en-IN')}</h3><p className="price-note">Lowest in-stock prices shown</p></div>
           <button id="clear-build" className="clear-build-btn" onClick={clearBuild}>Clear Build</button>
+
+          {loggedIn && (
+          <div className="saved-builds">
+            <div className="section-header"><h3>Saved Builds</h3></div>
+            {savedBuilds.length===0 ? (
+              <p className="empty-note">No saved builds yet. Save your current build to add it here.</p>
+            ) : (
+              <ul className="saved-builds-list">
+                {savedBuilds.map(b => (
+                  <li key={b.id} className="saved-build-item">
+                    <div className="saved-build-meta">
+                      <strong className="saved-build-name">{b.name}</strong>
+                      <span className="saved-build-date">{new Date(b.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div className="saved-build-actions">
+                      <button className="toolbar-btn" onClick={()=>loadSavedById(b.id)}>Load</button>
+                      <button className="toolbar-btn" onClick={()=>renameSaved(b.id)}>Rename</button>
+                      <button className="toolbar-btn" onClick={()=>deleteSaved(b.id)}>Delete</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          )}
         </aside>
       </main>
 
@@ -166,8 +266,29 @@ export default function Builder(){
                   <h2>Select a {displayName(modal.category)}</h2>
                   <button className="modal-close-btn" onClick={closeModal}>&times;</button>
                 </div>
+                <div className="modal-search-row" style={{padding:'8px 0 12px', display:'flex', gap:'8px'}}>
+                  <input
+                    type="search"
+                    placeholder={`Search ${displayName(modal.category)}...`}
+                    value={modalQuery}
+                    onChange={e=>setModalQuery(e.target.value)}
+                    aria-label="Search in list"
+                    style={{flex:1}}
+                  />
+                </div>
                 <div id="modal-body" className="modal-body">
-                  {(db[modal.category]||[]).map(item => {
+                  {(db[modal.category]||[])
+                    .filter(i=>{
+                      const q = modalQuery.trim().toLowerCase()
+                      if(!q) return true
+                      return (
+                        i.name?.toLowerCase().includes(q) ||
+                        i.brand?.toLowerCase().includes(q) ||
+                        i.memory?.toLowerCase().includes(q) ||
+                        i.capacity?.toLowerCase().includes(q)
+                      )
+                    })
+                    .map(item => {
                     const inStock = item.vendors.some(v=>v.stock)
                     const compatible = isCompatible(modal.category, item)
                     const priceText = inStock ? `From ₹${lowestPrice(item).toLocaleString('en-IN')}` : 'Out of Stock'

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Link, Navigate } from 'react-router-dom'
+import { Routes, Route, Link, NavLink, Navigate } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import Browse from './pages/Browse.jsx'
 import Builder from './pages/Builder.jsx'
@@ -16,10 +16,10 @@ function NavBar() {
       <div className="container">
         <Link to="/" className="brand-logo">PCease 🖥️</Link>
         <ul className="nav-links">
-          <li><Link to="/browse">Browse Components</Link></li>
-          <li><Link to="/builder">PC Builder</Link></li>
-          <li><Link to="/query">Build Advisor</Link></li>
-          <li><Link to="/forum">Forum</Link></li>
+          <li><NavLink to="/browse" className={({isActive})=> 'nav-link'+(isActive?' active':'')}>Browse Components</NavLink></li>
+          <li><NavLink to="/builder" className={({isActive})=> 'nav-link'+(isActive?' active':'')}>PC Builder</NavLink></li>
+          <li><NavLink to="/query" className={({isActive})=> 'nav-link'+(isActive?' active':'')}>Build Advisor</NavLink></li>
+          <li><NavLink to="/forum" className={({isActive})=> 'nav-link'+(isActive?' active':'')}>Forum</NavLink></li>
           <li>
             <button id="theme-toggle" className="theme-toggle-btn" type="button" aria-pressed={theme==='dark'} title="Toggle dark mode" onClick={toggle}>
               <span className="theme-icon">{theme==='dark' ? '☀️' : '🌙'}</span>
