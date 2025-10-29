@@ -1,89 +1,66 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import '../styles/home.css'
-import { componentsDB as db } from '../shared/components-data.js'
+import { getComponentsStructured, getThreads } from '../shared/api.js'
 
 function DBStats() {
-  const { categories, total } = useMemo(() => {
-    const categories = Object.keys(db)
-    const total = categories.reduce((sum, k) => sum + (db[k]?.length || 0), 0)
-    return { categories, total }
-  }, [])
-  return <div className="hero-stats"><span>{Object.keys(db).length} categories • {total} components</span></div>
+  const [stats, setStats] = useState({ categories: 0, total: 0 })
+  useEffect(()=>{
+    let mounted = true
+    ;(async()=>{
+      try{
+        const grouped = await getComponentsStructured()
+        const categories = Object.keys(grouped)
+        const total = categories.reduce((sum,k)=> sum + (grouped[k]?.length||0), 0)
+        if(mounted) setStats({ categories: categories.length, total })
+      }catch{}
+    })()
+    return ()=>{ mounted = false }
+  },[])
+  return <div className="hero-stats"><span>{stats.categories} categories • {stats.total} components</span></div>
 }
 
 function ForumInline() {
-  const STORAGE_KEY = 'pc_forum_threads'
-  const [threads, setThreads] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-  })
+  const [threads, setThreads] = useState([])
   const [filter, setFilter] = useState('')
-  const [form, setForm] = useState({ title: '', category: 'General', content: '' })
-
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(threads)) }, [threads])
-
-  const filtered = useMemo(() => {
-    const list = [...threads].sort((a,b)=>b.createdAt-a.createdAt)
-    return filter ? list.filter(t=>t.category===filter) : list
-  }, [threads, filter])
-
-  const onSubmit = (e) => {
-    e.preventDefault()
-    const user = (JSON.parse(localStorage.getItem('pc_session')||'null')||{}).username || 'Guest'
-    if (!user || user==='Guest') { window.location.href = '/login?redirect=/' ; return }
-    if (!form.title.trim() || !form.content.trim()) return
-    setThreads(prev => [{ id: Date.now(), user, createdAt: Date.now(), ...form }, ...prev])
-    setForm({ title: '', category: 'General', content: '' })
-  }
-  const clearAll = () => { if (confirm('Clear all threads stored in this browser?')) setThreads([]) }
-
+  const [loading, setLoading] = useState(true)
+  useEffect(()=>{ (async()=>{ try{ const list = await getThreads(''); setThreads(list) } finally{ setLoading(false) } })() },[])
+  const filtered = useMemo(()=> (filter ? threads.filter(t=>t.category===filter) : threads).slice(0,6), [threads, filter])
   return (
     <section id="community" className="forum" aria-labelledby="community-title">
       <div className="container">
         <h2 id="community-title" className="section-title">Community Forum</h2>
-        <p className="forum-subtitle">Discuss PC builds, share the latest trends, and help each other out. Your posts are saved locally in your browser.</p>
+        <p className="forum-subtitle">Discuss PC builds, share the latest trends, and help each other out.</p>
         <div className="forum-layout">
-          <div className="forum-column">
-            <form className="new-thread-form" onSubmit={onSubmit} aria-label="Create a new thread">
-              <div className="form-row">
-                <div className="form-field">
-                  <label htmlFor="thread-title">Title</label>
-                  <input type="text" id="thread-title" placeholder="e.g., Help choosing between 4070 and 7800 XT" required value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} />
-                </div>
-                <div className="form-field">
-                  <label htmlFor="thread-category">Category</label>
-                  <select id="thread-category" required value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
-                    <option value="General">General</option>
-                    <option value="Builds">Builds</option>
-                    <option value="Troubleshooting">Troubleshooting</option>
-                    <option value="News">News</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-field">
-                <label htmlFor="thread-content">Content</label>
-                <textarea id="thread-content" rows="4" placeholder="Share your question or topic..." required value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))}></textarea>
-              </div>
-              <button type="submit" className="cta-button">Post Thread</button>
-            </form>
-          </div>
-
-          <div className="forum-column">
-            <div className="forum-toolbar">
-              <div className="forum-filter">
-                <label htmlFor="filter-category">Filter:</label>
-                <select id="filter-category" value={filter} onChange={e=>setFilter(e.target.value)}>
-                  <option value="">All</option>
-                  <option value="General">General</option>
-                  <option value="Builds">Builds</option>
-                  <option value="Troubleshooting">Troubleshooting</option>
-                  <option value="News">News</option>
-                </select>
-              </div>
-              <button className="secondary-button" type="button" title="Clear all threads" onClick={clearAll}>Clear All</button>
+          <div className="forum-column" style={{flexBasis:'35%'}}>
+            <div className="forum-filter" style={{marginBottom:12}}>
+              <label htmlFor="home-filter-category">Filter:</label>
+              <select id="home-filter-category" value={filter} onChange={e=>setFilter(e.target.value)}>
+                <option value="">All</option>
+                <option value="General">General</option>
+                <option value="Builds">Builds</option>
+                <option value="Troubleshooting">Troubleshooting</option>
+                <option value="News">News</option>
+              </select>
             </div>
+            <a href="/forum" className="cta-button">Open Forum</a>
+          </div>
+          <div className="forum-column">
             <div id="threads-list" className="threads-list" aria-live="polite">
-              {filtered.length===0 ? <p className="forum-empty">No threads yet. Be the first to post!</p> : filtered.map(t => (
-                <article key={t.id} className="thread-card">
+              {loading ? (
+                [...Array(3)].map((_,i)=> (
+                  <article key={'skeleton-inline-'+i} className="thread-card">
+                    <div className="thread-header">
+                      <h3 className="thread-title skeleton" style={{width:'60%'}}>&nbsp;</h3>
+                      <div className="thread-meta">
+                        <span className="thread-badge skeleton" style={{width:60}}>&nbsp;</span>
+                        <span className="thread-date skeleton" style={{width:100}}>&nbsp;</span>
+                      </div>
+                    </div>
+                    <p className="thread-content skeleton" style={{height:50}}>&nbsp;</p>
+                  </article>
+                ))
+              ) : filtered.length===0 ? <p className="forum-empty">No threads yet. Be the first to post!</p> : filtered.map(t => (
+                <article key={t._id} className="thread-card">
                   <div className="thread-header">
                     <h3 className="thread-title">{t.title}</h3>
                     <div className="thread-meta">

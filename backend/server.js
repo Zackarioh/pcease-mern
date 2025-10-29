@@ -27,7 +27,6 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log("❌ MongoDB error:", err));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 // ===== Schemas =====
 const userSchema = new mongoose.Schema({
   username: { type: String, unique: true },
@@ -35,13 +34,56 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model("User", userSchema);
 
-const componentSchema = new mongoose.Schema({
+const vendorSchema = new mongoose.Schema({
   name: String,
-  category: String,
   price: Number,
-  specs: Object
-});
+  url: String,
+  stock: Boolean
+}, { _id: false })
+
+const componentSchema = new mongoose.Schema({
+  // Keep legacy numeric id used by the frontend for selection and comparison
+  id: { type: Number, index: true },
+  category: { type: String, required: true },
+  name: { type: String, required: true },
+  brand: String,
+  ramType: String,
+  formFactor: String,
+  cores: Number,
+  memory: String,
+  capacity: String,
+  wattage: Number,
+  vendors: [vendorSchema],
+  specs: mongoose.Schema.Types.Mixed
+}, { timestamps: true })
+
+// Avoid duplicate legacy ids per category
+componentSchema.index({ category: 1, id: 1 }, { unique: true, sparse: true })
 const Component = mongoose.model("Component", componentSchema);
+
+// ===== Threads (Forum) =====
+const threadSchema = new mongoose.Schema({
+  user: String, // username for simplicity
+  title: { type: String, required: true },
+  category: { type: String, default: 'General' },
+  content: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+const Thread = mongoose.model("Thread", threadSchema);
+
+// ===== Auth middleware =====
+function authMiddleware(req, res, next){
+  const header = req.headers.authorization || '';
+  const [scheme, token] = header.split(' ');
+  if (scheme !== 'Bearer' || !token) return res.status(401).json({ error: 'Unauthorized' });
+  try{
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload;
+    next();
+  }catch(err){
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
 
 // ===== Routes =====
 
@@ -69,17 +111,51 @@ app.post("/api/login", async (req, res) => {
   res.json({ message: "Login successful", token });
 });
 
-// Add component
+// Add component (accept full shape)
 app.post("/api/components", async (req, res) => {
-  const { name, category, price, specs } = req.body;
-  const component = await Component.create({ name, category, price, specs });
-  res.json(component);
+  try {
+    const component = await Component.create(req.body);
+    res.json(component);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-// Get components
+// Get components (optional ?category=cpu)
 app.get("/api/components", async (req, res) => {
-  const components = await Component.find();
+  const { category } = req.query;
+  const q = category ? { category } : {};
+  const components = await Component.find(q).lean();
   res.json(components);
+});
+
+// ===== Thread routes =====
+// List threads (optionally filter by category)
+app.get('/api/threads', async (req, res) => {
+  const { category } = req.query;
+  const q = category ? { category } : {};
+  const threads = await Thread.find(q).sort({ createdAt: -1 }).lean();
+  res.json(threads);
+});
+
+// Create thread (auth required)
+app.post('/api/threads', authMiddleware, async (req, res) => {
+  const { title, category = 'General', content } = req.body;
+  if (!title || !content) return res.status(400).json({ error: 'Missing title or content' });
+  const username = req.body.user || (await User.findById(req.user.id).then(u=>u?.username).catch(()=>null)) || 'Unknown';
+  const doc = await Thread.create({ user: username, title, category, content });
+  res.json(doc);
+});
+
+// Delete thread (auth required, only author can delete)
+app.delete('/api/threads/:id', authMiddleware, async (req, res) => {
+  const id = req.params.id;
+  const th = await Thread.findById(id);
+  if (!th) return res.status(404).json({ error: 'Not found' });
+  const username = await User.findById(req.user.id).then(u=>u?.username).catch(()=>null);
+  if (!username || th.user !== username) return res.status(403).json({ error: 'Forbidden' });
+  await Thread.deleteOne({ _id: id });
+  res.json({ ok: true });
 });
 
 

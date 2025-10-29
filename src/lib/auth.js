@@ -19,6 +19,10 @@ export function isLoggedIn() {
   return !!getSession();
 }
 
+export function getToken(){
+  return getSession()?.token || '';
+}
+
 export function logout() {
   localStorage.removeItem("pc_session");
 }

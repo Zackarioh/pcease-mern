@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import '../styles/browse.css'
-import { componentsDB } from '../shared/components-data.js'
+import { getComponentsStructured } from '../shared/api.js'
 
 function transformDB(db) {
   const all = []
@@ -42,7 +42,22 @@ function getCheapestVendor(component) {
 }
 
 export default function Browse() {
-  const allComponents = useMemo(() => transformDB(componentsDB), [])
+  const [db, setDb] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(()=>{
+    let mounted = true
+    ;(async()=>{
+      try{
+        const grouped = await getComponentsStructured()
+        if(mounted) setDb(grouped)
+      }catch(e){ if(mounted) setError('Failed to load components') }
+      finally{ if(mounted) setLoading(false) }
+    })()
+    return ()=>{ mounted = false }
+  },[])
+
+  const allComponents = useMemo(() => transformDB(db), [db])
   const [activeFilter, setActiveFilter] = useState('all')
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
@@ -91,6 +106,30 @@ export default function Browse() {
 
   const comparisonComponents = compareList.map(id => allComponents.find(c=>c.id===id)).filter(Boolean)
 
+  if (loading) return (
+    <main className="container">
+      <header className="page-header">
+        <h1>🔍 Component Database</h1>
+        <p>Search, filter, and compare PC components with live market prices. Press <kbd>Ctrl+K</kbd> to quick search.</p>
+      </header>
+      <div className="component-grid">
+        {[...Array(8)].map((_,i)=> (
+          <div key={'sk-'+i} className="component-card">
+            <div className="component-card-header">
+              <div className="component-category-badge skeleton" style={{width:120}}>&nbsp;</div>
+              <div className="component-actions"><button className="action-icon-btn">⭐</button></div>
+            </div>
+            <div className="component-name skeleton" style={{height:22}}>&nbsp;</div>
+            <ul className="vendor-list-mini">
+              <li className="vendor-mini"><span className="skeleton" style={{width:'60%'}}>&nbsp;</span><span className="skeleton" style={{width:80}}>&nbsp;</span></li>
+              <li className="vendor-mini"><span className="skeleton" style={{width:'40%'}}>&nbsp;</span><span className="skeleton" style={{width:60}}>&nbsp;</span></li>
+            </ul>
+          </div>
+        ))}
+      </div>
+    </main>
+  )
+  if (error) return <main className="container"><p style={{color:'var(--muted)'}}>{error}</p></main>
   return (
     <main className="container">
       <header className="page-header">

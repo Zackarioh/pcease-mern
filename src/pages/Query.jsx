@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import '../styles/query.css'
-import { componentsDB } from '../shared/components-data.js'
+import { getComponentsStructured } from '../shared/api.js'
 import { useNavigate } from 'react-router-dom'
 
 function buildAllComponents(db){
@@ -50,7 +50,19 @@ function getCheapestVendor(component){
 
 export default function Query(){
   const navigate = useNavigate()
-  const allComponents = useMemo(()=>buildAllComponents(componentsDB), [])
+  const [db, setDb] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(()=>{
+    let mounted = true
+    ;(async()=>{
+      try{ const grouped = await getComponentsStructured(); if(mounted) setDb(grouped) }
+      catch(e){ if(mounted) setError('Failed to load components') }
+      finally{ if(mounted) setLoading(false) }
+    })()
+    return ()=>{ mounted = false }
+  },[])
+  const allComponents = useMemo(()=>buildAllComponents(db), [db])
 
   const [budget, setBudget] = useState(80000)
   const [useCase, setUseCase] = useState('')
@@ -232,6 +244,8 @@ export default function Query(){
 
   function toggleGamingPref(value){ setGamingPrefs(prev => prev.includes(value) ? prev.filter(v=>v!==value) : [...prev, value]) }
 
+  if (loading) return <main className="container"><p>Loading components...</p></main>
+  if (error) return <main className="container"><p style={{color:'var(--muted)'}}>{error}</p></main>
   return (
     <main className="container">
       <header className="page-header">

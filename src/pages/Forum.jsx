@@ -1,34 +1,45 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import '../styles/forum.css'
-import { isLoggedIn, getSession } from '../lib/auth.js'
+import { isLoggedIn, getSession, getToken } from '../lib/auth.js'
+import { getThreads, createThread, deleteThread } from '../shared/api.js'
 
 export default function Forum() {
-  const STORAGE_KEY = 'pc_forum_threads'
-  const [threads, setThreads] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-  })
+  const [threads, setThreads] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [filter, setFilter] = useState('')
   const [form, setForm] = useState({ title: '', category: 'General', content: '' })
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(threads)) }, [threads])
+  const load = async (category) => {
+    setLoading(true); setError('')
+    try{ const list = await getThreads(category); setThreads(list) }
+    catch(e){ setError('Failed to load threads') }
+    finally{ setLoading(false) }
+  }
+  useEffect(()=>{ load('') },[])
 
   const filtered = useMemo(() => {
-    const list = [...threads].sort((a,b)=>b.createdAt-a.createdAt)
+    const list = [...threads].sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt))
     return filter ? list.filter(t=>t.category===filter) : list
   }, [threads, filter])
 
   const session = getSession()
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault()
     if (!isLoggedIn()) { window.location.href = '/login?redirect=/forum' ; return }
-    const user = session?.username || 'Guest'
     if (!form.title.trim() || !form.content.trim()) return
-    setThreads(prev => [{ id: Date.now(), user, createdAt: Date.now(), ...form }, ...prev])
-    setForm({ title: '', category: 'General', content: '' })
+    try{
+      await createThread({ title: form.title.trim(), category: form.category, content: form.content.trim(), token: getToken() })
+      setForm({ title: '', category: 'General', content: '' })
+      await load(filter)
+    }catch(err){ alert(err.message || 'Failed to post') }
   }
-  const clearAll = () => { if (confirm('Clear all threads stored in this browser?')) setThreads([]) }
-  const del = (id) => setThreads(list => list.filter(x => x.id !== id))
+  const clearAll = () => { /* no-op in Mongo mode; could add admin endpoint */ }
+  const del = async (id) => {
+    try{ await deleteThread({ id, token: getToken() }); await load(filter) }
+    catch(err){ alert(err.message || 'Failed to delete') }
+  }
 
   return (
     <main className="container">
@@ -68,7 +79,7 @@ export default function Forum() {
           <div className="forum-toolbar">
             <div className="forum-filter">
               <label htmlFor="filter-category">Filter:</label>
-              <select id="filter-category" value={filter} onChange={e=>setFilter(e.target.value)}>
+              <select id="filter-category" value={filter} onChange={e=>{ setFilter(e.target.value); load(e.target.value) }}>
                 <option value="">All</option>
                 <option value="General">General</option>
                 <option value="Builds">Builds</option>
@@ -76,11 +87,27 @@ export default function Forum() {
                 <option value="News">News</option>
               </select>
             </div>
-            <button className="secondary-button" type="button" title="Clear all threads" onClick={clearAll}>Clear All</button>
+            <button className="secondary-button" type="button" title="Reload" onClick={()=>load(filter)}>Reload</button>
           </div>
           <div id="threads-list" className="threads-list" aria-live="polite">
-            {filtered.length===0 ? <p className="forum-empty">No threads yet. Be the first to post!</p> : filtered.map(t => (
-              <article key={t.id} className="thread-card">
+            {loading ? (
+              <>
+                {[...Array(3)].map((_,i)=> (
+                  <article key={'skeleton-'+i} className="thread-card">
+                    <div className="thread-header">
+                      <h3 className="thread-title skeleton" style={{width:'50%'}}>&nbsp;</h3>
+                      <div className="thread-meta">
+                        <span className="thread-badge skeleton" style={{width:70}}>&nbsp;</span>
+                        <span className="thread-date skeleton" style={{width:110}}>&nbsp;</span>
+                        <span className="thread-author skeleton" style={{width:90}}>&nbsp;</span>
+                      </div>
+                    </div>
+                    <p className="thread-content skeleton" style={{height:60}}>&nbsp;</p>
+                  </article>
+                ))}
+              </>
+            ) : error ? <p className="forum-empty">{error}</p> : filtered.length===0 ? <p className="forum-empty">No threads yet. Be the first to post!</p> : filtered.map(t => (
+              <article key={t._id} className="thread-card">
                 <div className="thread-header">
                   <h3 className="thread-title">{t.title}</h3>
                   <div className="thread-meta">
@@ -91,7 +118,7 @@ export default function Forum() {
                 </div>
                 <p className="thread-content">{t.content}</p>
                 <div className="thread-actions">
-                  {session?.username===t.user && <button className="thread-delete" onClick={()=>del(t.id)}>Delete</button>}
+                  {session?.username===t.user && <button className="thread-delete" onClick={()=>del(t._id)}>Delete</button>}
                 </div>
               </article>
             ))}

@@ -4,18 +4,34 @@ A faithful React migration of the original PCease static site with pixel/behavio
 
 ## Quick start
 
-Prereqs: Node 18+ and npm
+Prereqs: Node 18+ and npm. For backend API: MongoDB (local or Atlas) and a JWT secret.
 
-- Install deps:
-  - npm install
-- Start dev server:
-  - npm run dev
-- Build for prod:
-  - npm run build
-- Preview production build:
-  - npm run preview
+- Frontend (Vite React):
 
-Dev server runs at http://localhost:5173/
+  - Install deps: `npm install`
+  - Start dev server: `npm run dev` (http://localhost:5173)
+  - Build for prod: `npm run build`
+  - Preview production build: `npm run preview`
+
+- Backend (Express + Mongo):
+  - cd backend; `npm install`
+  - Create `backend/.env`:
+    - `MONGO_URI=mongodb://127.0.0.1:27017/pcease` (or your Atlas URI)
+    - `JWT_SECRET=replace-with-a-dev-secret`
+    - `PORT=5000` (optional)
+  - Start API: `npm start` (http://localhost:5000)
+
+### Seed initial component data (optional)
+
+The app now reads components from MongoDB via the backend API. If you need to (re)seed:
+
+- From project root: `npm --prefix backend run seed`
+- The script will use `backend/scripts/components-seed.json` if present. If no seed file is found it will simply skip.
+
+Dev servers:
+
+- Frontend: http://localhost:5173/
+- API: http://localhost:5000/
 
 ## Routes
 
@@ -30,8 +46,8 @@ Dev server runs at http://localhost:5173/
 
 - Styling: Original CSS copied verbatim per page under src/styles to preserve look and feel.
 - Theme: useTheme hook mirrors original data-theme behavior; toggle in header.
-- Auth: LocalStorage-based auth ported (no backend).
-- Data: componentsDB converted to ES module at src/shared/components-data.js.
+- Auth: Login/Register routed via backend API (`/api/register`, `/api/login`).
+- Data: Components served by backend API (`/api/components`) from MongoDB.
 - Share/import: Builder accepts base64-encoded JSON in `?build=` param.
 
 ## Folder structure
@@ -41,7 +57,6 @@ Dev server runs at http://localhost:5173/
 - src/styles/\* — Original page CSS
 - src/lib/auth.js — Auth utilities
 - src/lib/theme.js — Theme hook
-- src/shared/components-data.js — Shared data
 
 ## Parity checks
 

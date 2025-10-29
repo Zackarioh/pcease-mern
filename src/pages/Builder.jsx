@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import '../styles/builder.css'
-import { componentsDB } from '../shared/components-data.js'
+import { getComponentsStructured } from '../shared/api.js'
 
 function getCheapestVendor(component){
   if (!component?.vendors?.length) return null
@@ -16,7 +16,19 @@ function lowestPrice(component){
 function displayName(category){ return category.replace('pcCase','Case & Fans') }
 
 export default function Builder(){
-  const categories = Object.keys(componentsDB)
+  const [db, setDb] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(()=>{
+    let mounted = true
+    ;(async()=>{
+      try{ const grouped = await getComponentsStructured(); if(mounted) setDb(grouped) }
+      catch(e){ if(mounted) setError('Failed to load components') }
+      finally{ if(mounted) setLoading(false) }
+    })()
+    return ()=>{ mounted = false }
+  },[])
+  const categories = Object.keys(db)
   const [currentBuild, setCurrentBuild] = useState(()=>({ cpu:null, motherboard:null, ram:null, gpu:null, storage:null, psu:null, pcCase:null, monitor:null }))
   const [modal, setModal] = useState({ open:false, view:'list', category:null, itemId:null })
 
@@ -52,7 +64,7 @@ export default function Builder(){
   const closeModal = () => setModal(m => ({...m, open:false}))
   const showDetail = (category, id) => setModal({ open:true, view:'detail', category, itemId:id })
   const addToBuild = (category, id) => {
-    const item = componentsDB[category].find(i => i.id === id)
+    const item = (db[category]||[]).find(i => i.id === id)
     setCurrentBuild(b => ({...b, [category]: item}))
     setModal(m => ({...m, open:false}))
   }
@@ -155,7 +167,7 @@ export default function Builder(){
                   <button className="modal-close-btn" onClick={closeModal}>&times;</button>
                 </div>
                 <div id="modal-body" className="modal-body">
-                  {componentsDB[modal.category].map(item => {
+                  {(db[modal.category]||[]).map(item => {
                     const inStock = item.vendors.some(v=>v.stock)
                     const compatible = isCompatible(modal.category, item)
                     const priceText = inStock ? `From ₹${lowestPrice(item).toLocaleString('en-IN')}` : 'Out of Stock'
@@ -172,12 +184,12 @@ export default function Builder(){
               <>
                 <div id="modal-header" className="modal-header">
                   <button className="modal-back-btn" onClick={()=>setModal(m=>({...m, view:'list'}))}>&larr;</button>
-                  <h2>{componentsDB[modal.category].find(i=>i.id===modal.itemId)?.name}</h2>
+                  <h2>{(db[modal.category]||[]).find(i=>i.id===modal.itemId)?.name}</h2>
                   <button className="modal-close-btn" onClick={closeModal}>&times;</button>
                 </div>
                 <div id="modal-body" className="modal-body">
                   <ul className="vendor-list">
-                    {componentsDB[modal.category].find(i=>i.id===modal.itemId)?.vendors.map((v,i)=> (
+                    {(db[modal.category]||[]).find(i=>i.id===modal.itemId)?.vendors.map((v,i)=> (
                       <li key={i} className="vendor-item">
                         <div className="vendor-info">
                           <a className="vendor-link" href={v.url} target="_blank" rel="noreferrer">{v.name} ⇗</a>
@@ -188,8 +200,8 @@ export default function Builder(){
                     ))}
                   </ul>
                   <div className="detail-view-footer">
-                    {componentsDB[modal.category].find(i=>i.id===modal.itemId)?.vendors.some(v=>v.stock) ? (
-                      <button className="add-to-build-btn" onClick={()=>addToBuild(modal.category, modal.itemId)}>Add to Build for ₹{lowestPrice(componentsDB[modal.category].find(i=>i.id===modal.itemId)).toLocaleString('en-IN')}</button>
+                    {(db[modal.category]||[]).find(i=>i.id===modal.itemId)?.vendors.some(v=>v.stock) ? (
+                      <button className="add-to-build-btn" onClick={()=>addToBuild(modal.category, modal.itemId)}>Add to Build for ₹{lowestPrice((db[modal.category]||[]).find(i=>i.id===modal.itemId)).toLocaleString('en-IN')}</button>
                     ) : (
                       <button className="add-to-build-btn" disabled>Out of Stock</button>
                     )}
