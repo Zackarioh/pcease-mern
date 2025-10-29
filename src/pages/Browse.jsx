@@ -69,6 +69,8 @@ export default function Browse(){
   const [favorites, setFavorites] = useState(()=> JSON.parse(localStorage.getItem('favorites')||'[]')||[])
   const [compareList, setCompareList] = useState(()=> JSON.parse(localStorage.getItem('compareList')||'[]')||[])
   const [detail, setDetail] = useState({ open:false, item:null })
+  const [showFavorites, setShowFavorites] = useState(false)
+  const [showCompareModal, setShowCompareModal] = useState(false)
 
   useEffect(()=>{ localStorage.setItem('favorites', JSON.stringify(favorites)) }, [favorites])
   useEffect(()=>{ localStorage.setItem('compareList', JSON.stringify(compareList)) }, [compareList])
@@ -89,6 +91,20 @@ export default function Browse(){
   const toggleFavorite = (uid) => setFavorites(list => list.includes(uid) ? list.filter(x=>x!==uid) : [...list, uid])
   const toggleCompare = (uid) => setCompareList(list => list.includes(uid) ? list.filter(x=>x!==uid) : (list.length>=3 ? list : [...list, uid]))
 
+  // helper to resolve an item from a stored id/uid
+  const findItemByUid = (uidOrId) => {
+    if (!uidOrId) return null
+    // uid format: category-id
+    if (typeof uidOrId === 'string' && uidOrId.includes('-')){
+      return all.find(x => x.uid === uidOrId) || null
+    }
+    // fallback numeric id (legacy)
+    return all.find(x => x.id === Number(uidOrId)) || null
+  }
+
+  const favoritesItems = favorites.map(f => findItemByUid(f)).filter(Boolean)
+  const compareItems = compareList.map(c => findItemByUid(c)).filter(Boolean)
+
   if (loading) return (
     <main className="container"><header className="page-header"><h1>Browse Components</h1><p>Loading components…</p></header></main>
   )
@@ -100,6 +116,12 @@ export default function Browse(){
         <h1>Browse Components</h1>
         <p>Find the right part by category, brand, and price, then compare or buy from listed vendors.</p>
       </header>
+
+      {/* Favorites / Compare toolbar (centered below header) */}
+      <div className="toolbar-row">
+        <button className="toolbar-btn" onClick={()=>setShowFavorites(true)}>⭐ Favorites ({favoritesItems.length})</button>
+        <button className="toolbar-btn" onClick={()=>setShowCompareModal(true)} disabled={compareItems.length===0}>⚖️ Compare ({compareItems.length})</button>
+      </div>
 
       <section className="controls">
         <input className="control-input" type="search" placeholder="Search by name or brand…" value={search} onChange={e=>setSearch(e.target.value)} />
@@ -123,6 +145,113 @@ export default function Browse(){
           </div>
         </div>
       </section>
+
+      {/* Favorites modal */}
+      {showFavorites && (
+        <div className="modal-container active" role="dialog" aria-modal="true">
+          <div className="modal-overlay" onClick={()=>setShowFavorites(false)}></div>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Favorites</h2>
+              <button className="modal-close-btn" onClick={()=>setShowFavorites(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              {favoritesItems.length===0 ? <p className="muted">No favorites yet.</p> : (
+                <ul className="fav-list">
+                  {favoritesItems.map(item => (
+                    <li key={item.uid} className="fav-item">
+                      <div>
+                        <strong>{item.name}</strong>
+                        <div className="muted">{getCategoryName(item.category)} — {item.brand}</div>
+                      </div>
+                      <div className="fav-actions">
+                        <button className="btn" onClick={()=>{ openDetail(item); setShowFavorites(false) }}>View</button>
+                        <button className="btn" onClick={()=> toggleFavorite(item.uid) }>Remove</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compare modal (table) */}
+      {showCompareModal && (
+        <div className="modal-container active" role="dialog" aria-modal="true">
+          <div className="modal-overlay" onClick={()=>setShowCompareModal(false)}></div>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Compare</h2>
+              <button className="modal-close-btn" onClick={()=>setShowCompareModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              {compareItems.length===0 ? <p className="muted">No items selected for comparison.</p> : (
+                <div style={{overflowX:'auto'}}>
+                  <table className="compare-table">
+                    <thead>
+                      <tr>
+                        <th>Attribute</th>
+                        {compareItems.map(it => (<th key={it.uid}>{it.name}</th>))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="attr">Category</td>
+                        {compareItems.map(it => (<td key={it.uid+'-cat'}>{getCategoryName(it.category)}</td>))}
+                      </tr>
+                      <tr>
+                        <td className="attr">Brand</td>
+                        {compareItems.map(it => (<td key={it.uid+'-brand'}>{it.brand}</td>))}
+                      </tr>
+                      <tr>
+                        <td className="attr">Price</td>
+                        {compareItems.map(it => (<td key={it.uid+'-price'}>{getCheapestVendor(it) ? `₹${getCheapestVendor(it).price.toLocaleString('en-IN')}` : 'No offers'}</td>))}
+                      </tr>
+                      <tr>
+                        <td className="attr">Specs</td>
+                        {compareItems.map(it => (
+                          <td key={it.uid+'-specs'}>
+                            {[it.cores ? `${it.cores} cores` : null, it.memory || null, it.capacity || null, it.wattage ? `${it.wattage}W` : null, it.formFactor || null, it.ramType || null].filter(Boolean).join(' • ')}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="attr">Vendors</td>
+                        {compareItems.map(it => (
+                          <td key={it.uid+'-vendors'}>
+                            {it.vendors?.length ? (
+                              <ul className="vendor-compact">
+                                {it.vendors.map((v,i)=> (<li key={i}>{v.name}: ₹{v.price.toLocaleString('en-IN')} {v.stock? '(In stock)':''}</li>))}
+                              </ul>
+                            ) : '—'}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="attr">Actions</td>
+                        {compareItems.map(it => (
+                          <td key={it.uid+'-actions'}>
+                            <div style={{display:'flex',gap:8}}>
+                              <button className="btn" onClick={()=>{ openDetail(it); setShowCompareModal(false) }}>View</button>
+                              <button className="btn" onClick={()=> toggleCompare(it.uid) }>Remove</button>
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{marginTop:'1rem', display:'flex', gap:'0.5rem'}}>
+                <button className="btn" onClick={()=>{ setCompareList([]); setShowCompareModal(false) }}>Clear All</button>
+                <button className="btn primary" onClick={()=>{ setShowCompareModal(false); }}>Done</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="grid">
         {results.length===0 ? <p className="muted">No components match your filters.</p> : results.map(item => {

@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import '../styles/query.css'
-import { getComponentsStructured } from '../shared/api.js'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getComponentsStructured } from '../shared/api.js'
+import '../styles/query.css'
 
 function buildAllComponents(db){
   const all = []
@@ -68,8 +68,7 @@ export default function Query(){
   const [useCase, setUseCase] = useState('')
   const [performanceLevel, setPerformanceLevel] = useState('mid-range')
   const [brandPreference, setBrandPreference] = useState('')
-  const [gamingPrefs, setGamingPrefs] = useState([])
-  const [additionalNotes, setAdditionalNotes] = useState('')
+  
 
   const [currentBuild, setCurrentBuild] = useState(null)
   const [resultsVisible, setResultsVisible] = useState(false)
@@ -110,9 +109,7 @@ export default function Query(){
       budget: p.budget,
       useCase: p.useCase || 'general',
       performanceLevel: 'preset',
-      brandPreference: p.brandPreference || '',
-      gamingPrefs: [],
-      additionalNotes: ''
+      brandPreference: p.brandPreference || ''
     })
   }
 
@@ -197,7 +194,7 @@ export default function Query(){
 
   function handleSubmit(e){
     e.preventDefault()
-    generateBuildRecommendation({ budget, useCase, performanceLevel, brandPreference, gamingPrefs, additionalNotes })
+    generateBuildRecommendation({ budget, useCase, performanceLevel, brandPreference })
   }
   function reset(){
     setResultsVisible(false)
@@ -206,8 +203,7 @@ export default function Query(){
     setUseCase('')
     setPerformanceLevel('mid-range')
     setBrandPreference('')
-    setGamingPrefs([])
-    setAdditionalNotes('')
+    
     window.scrollTo({ top:0, behavior:'smooth' })
   }
   function openInBuilder(){
@@ -242,7 +238,7 @@ export default function Query(){
     }).catch(()=> alert('Failed to copy to clipboard'))
   }
 
-  function toggleGamingPref(value){ setGamingPrefs(prev => prev.includes(value) ? prev.filter(v=>v!==value) : [...prev, value]) }
+  
 
   if (loading) return <main className="container"><p>Loading components...</p></main>
   if (error) return <main className="container"><p style={{color:'var(--muted)'}}>{error}</p></main>
@@ -322,20 +318,7 @@ export default function Query(){
             </select>
           </div>
 
-          <div className="form-group">
-            <label>🎮 Gaming Preferences (if applicable)<span className="label-hint">Select all that apply</span></label>
-            <div className="checkbox-group">
-              <label className="checkbox-label"><input type="checkbox" checked={gamingPrefs.includes('competitive')} onChange={()=>toggleGamingPref('competitive')} /><span>Competitive Gaming (High FPS)</span></label>
-              <label className="checkbox-label"><input type="checkbox" checked={gamingPrefs.includes('ray-tracing')} onChange={()=>toggleGamingPref('ray-tracing')} /><span>Ray Tracing / Visual Quality</span></label>
-              <label className="checkbox-label"><input type="checkbox" checked={gamingPrefs.includes('vr')} onChange={()=>toggleGamingPref('vr')} /><span>VR Gaming</span></label>
-              <label className="checkbox-label"><input type="checkbox" checked={gamingPrefs.includes('streaming')} onChange={()=>toggleGamingPref('streaming')} /><span>Streaming While Gaming</span></label>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="additional-notes">📝 Additional Requirements (Optional)<span className="label-hint">Any specific needs or preferences?</span></label>
-            <textarea id="additional-notes" rows="3" placeholder="e.g., Need WiFi, prefer quiet operation, specific color scheme..." value={additionalNotes} onChange={e=> setAdditionalNotes(e.target.value)} />
-          </div>
+          
 
           <button type="submit" className="submit-btn">✨ Get Build Recommendations</button>
         </form>
